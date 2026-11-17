@@ -1,0 +1,423 @@
+<title>ゼリースロープ プレビュー</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* レイアウト: 左に 3D ビュー、右に寸法とパラメータ。狭い画面では縦に積む */
+:root {
+  --bg: #eef0ea;
+  --panel: #f8f9f5;
+  --fg: #1f241c;
+  --muted: #5d6656;
+  --line: #cfd4c6;
+  --accent: #a85a12;
+  --stage: #e2e6dc;
+  --font-body: "Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+  --font-num: "Space Grotesk", "Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #171a15; --panel: #1f231c; --fg: #e6e9df; --muted: #9aa390;
+    --line: #343a2e; --accent: #e59a45; --stage: #22271f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #171a15; --panel: #1f231c; --fg: #e6e9df; --muted: #9aa390;
+  --line: #343a2e; --accent: #e59a45; --stage: #22271f;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  padding-block: 24px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+header { display: flex; flex-direction: column; gap: 4px; }
+h1 { font-size: 22px; font-weight: 700; margin: 0; text-wrap: balance; }
+.lead { margin: 0; color: var(--muted); max-width: 40em; }
+
+.main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 760px) { .main { grid-template-columns: minmax(0, 1fr); } }
+
+.stage {
+  position: relative;
+  background: var(--stage);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  aspect-ratio: 4 / 3;
+  max-width: 100%;
+  overflow: hidden;
+}
+.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.stage canvas:active { cursor: grabbing; }
+.hint { position: absolute; left: 12px; bottom: 10px; margin: 0; font-size: 12px; color: var(--muted); pointer-events: none; }
+.fail { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center; color: var(--muted); }
+
+.side { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+h2 { font-size: 13px; font-weight: 700; color: var(--muted); margin: 0 0 8px; letter-spacing: 0.04em; }
+
+.dims { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin: 0; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.dims div { display: flex; flex-direction: column; min-width: 0; }
+.dims dt { font-size: 12px; color: var(--muted); }
+.dims dd { margin: 0; font-family: var(--font-num); font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dims dd small { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 2px; }
+
+.controls { display: flex; flex-direction: column; gap: 12px; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: baseline; }
+.row label { font-size: 14px; }
+.row output { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 600; }
+.row input[type="range"] { grid-column: 1 / -1; width: 100%; margin: 0; accent-color: var(--accent); }
+input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.opts { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
+.check { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; }
+.check input { accent-color: var(--accent); }
+.swatches { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; }
+.swatches button { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line); padding: 0; cursor: pointer; }
+.swatches button[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+
+.scad { overflow-x: auto; }
+.scad pre { margin: 0; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; line-height: 1.5; color: var(--fg); user-select: all; }
+.note { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>昆虫ゼリー用 ドーナツ型スロープ</h1>
+    <p class="lead">中央の穴にゼリーカップを置き、斜面から小さい昆虫が登ります。カドに置く形では、カップを囲むリングから、カドと反対向きに斜面が広がります。値を動かすと形と寸法がその場で変わります。</p>
+  </header>
+
+  <div class="main">
+    <div class="stage" id="stage">
+      <canvas id="view" aria-label="スロープの 3D プレビュー"></canvas>
+      <p class="hint">ドラッグで回転、ホイールやピンチで拡大</p>
+      <p class="fail" id="fail" hidden>3D 表示を読み込めませんでした。寸法とパラメータは右側で確認できます。</p>
+    </div>
+
+    <div class="side">
+      <section>
+        <h2>仕上がり寸法</h2>
+        <dl class="dims">
+          <div><dt id="l-out">外径</dt><dd><span id="d-out"></span><small>mm</small></dd></div>
+          <div><dt>内径</dt><dd><span id="d-in"></span><small>mm</small></dd></div>
+          <div><dt>高さ</dt><dd><span id="d-h"></span><small>mm</small></dd></div>
+          <div><dt>斜面の長さ</dt><dd><span id="d-len"></span><small>mm</small></dd></div>
+        </dl>
+      </section>
+
+      <section>
+        <h2>パラメータ</h2>
+        <div class="controls">
+          <div class="row"><label for="cup_diameter">カップ直径</label><output id="o-cup_diameter"></output>
+            <input type="range" id="cup_diameter" min="30" max="60" step="0.5" value="38"></div>
+          <div class="row"><label for="cup_height">カップ高さ</label><output id="o-cup_height"></output>
+            <input type="range" id="cup_height" min="8" max="30" step="0.5" value="12"></div>
+          <div class="row"><label for="slope_angle">斜面の角度</label><output id="o-slope_angle"></output>
+            <input type="range" id="slope_angle" min="15" max="45" step="1" value="30"></div>
+          <div class="row"><label for="top_width">ふちの幅</label><output id="o-top_width"></output>
+            <input type="range" id="top_width" min="1" max="10" step="0.5" value="5"></div>
+          <div class="row"><label for="clearance">穴の遊び</label><output id="o-clearance"></output>
+            <input type="range" id="clearance" min="0" max="1.5" step="0.1" value="0.6"></div>
+          <label class="check"><input type="checkbox" id="corner" checked> ケースのカドに置く形にする</label>
+          <div class="row"><label for="slope_span">斜面の広がり</label><output id="o-slope_span"></output>
+            <input type="range" id="slope_span" min="30" max="180" step="5" value="90"></div>
+          <div class="row"><label for="edge_radius">斜面の角の丸み</label><output id="o-edge_radius"></output>
+            <input type="range" id="edge_radius" min="0" max="8" step="0.5" value="4"></div>
+          <div class="row"><label for="corner_wall">カド側の壁の厚み</label><output id="o-corner_wall"></output>
+            <input type="range" id="corner_wall" min="1" max="12" step="0.5" value="9"></div>
+          <div class="row"><label for="corner_radius">壁と壁のカドの丸み</label><output id="o-corner_radius"></output>
+            <input type="range" id="corner_radius" min="0" max="20" step="1" value="8"></div>
+          <div class="row"><label for="floor_radius">床と壁の境目の丸み</label><output id="o-floor_radius"></output>
+            <input type="range" id="floor_radius" min="0" max="20" step="1" value="8"></div>
+          <label class="check"><input type="checkbox" id="grip" checked> つまみを付ける</label>
+          <div class="row"><label for="grip_length">つまみの長さ</label><output id="o-grip_length"></output>
+            <input type="range" id="grip_length" min="6" max="25" step="1" value="14"></div>
+          <div class="row"><label for="grip_extra">つまみのアーチの高さ</label><output id="o-grip_extra"></output>
+            <input type="range" id="grip_extra" min="0" max="15" step="1" value="8"></div>
+        </div>
+      </section>
+
+      <section class="opts">
+        <label class="check"><input type="checkbox" id="show_cup" checked> ゼリーカップを表示</label>
+        <span class="swatches" id="swatches">色
+          <button type="button" id="col-brown" data-color="#7b5a44" aria-label="ブラウン" aria-pressed="true" style="background:#7b5a44"></button>
+          <button type="button" id="col-green" data-color="#5f7448" aria-label="モスグリーン" aria-pressed="false" style="background:#5f7448"></button>
+          <button type="button" id="col-black" data-color="#303033" aria-label="ブラック" aria-pressed="false" style="background:#303033"></button>
+          <button type="button" id="col-white" data-color="#e6e3dc" aria-label="ホワイト" aria-pressed="false" style="background:#e6e3dc"></button>
+        </span>
+      </section>
+
+      <section>
+        <h2>OpenSCAD に写す値</h2>
+        <div class="scad"><pre id="scad"></pre></div>
+        <p class="note">jelly_slope_ring.scad の冒頭をこの値に書き換えると、同じ形の STL を書き出せます。</p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function () {
+  var KEYS = ["cup_diameter", "cup_height", "slope_angle", "top_width", "clearance", "slope_span", "edge_radius", "corner_wall", "corner_radius", "floor_radius", "grip_length", "grip_extra"];
+  var UNITS = { cup_diameter: "mm", cup_height: "mm", slope_angle: "°", top_width: "mm", clearance: "mm", slope_span: "°", edge_radius: "mm", corner_wall: "mm", corner_radius: "mm", floor_radius: "mm", grip_length: "mm", grip_extra: "mm" };
+  var $ = function (id) { return document.getElementById(id); };
+
+  function params() {
+    var p = {};
+    KEYS.forEach(function (k) { p[k] = parseFloat($(k).value); });
+    return p;
+  }
+
+  // jelly_slope_ring.scad と同じ計算
+  function shape(p) {
+    var rIn = (p.cup_diameter + p.clearance) / 2;
+    var h = p.cup_height;
+    var run = h / Math.tan(p.slope_angle * Math.PI / 180);
+    var rTop = rIn + p.top_width;
+    var rOut = rTop + run;
+    var d = rIn + p.corner_wall;
+    return { rIn: rIn, rTop: rTop, rOut: rOut, h: h, run: run,
+             corner: $("corner").checked, d: d, rc: Math.min(p.corner_radius, d), rf: p.floor_radius, span: p.slope_span, e: p.edge_radius,
+             grip: $("grip").checked, gripLen: p.grip_length, gripExtra: p.grip_extra };
+  }
+
+  // 床と壁の境目の R により、高さ z で壁が内側へ入り込む量
+  function floorInset(s, z) {
+    if (s.rf <= 0 || z >= s.rf) return 0;
+    var u = s.rf - z;
+    return s.rf - Math.sqrt(Math.max(s.rf * s.rf - u * u, 0));
+  }
+
+  // 角度 theta の方向で、カド側の壁 (x = -d, z = -d、丸み rc) までの距離。inset だけ内側に寄せる
+  function wallLimit(s, theta, inset) {
+    var d = s.d - inset, rc = Math.max(s.rc - inset, 0);
+    var ux = Math.cos(theta), uz = Math.sin(theta), t = Infinity;
+    if (ux < -1e-9) t = Math.min(t, -d / ux);
+    if (uz < -1e-9) t = Math.min(t, -d / uz);
+    if (rc > 0 && isFinite(t)) {
+      var c = -d + rc;
+      if (t * ux < c + 1e-9 && t * uz < c + 1e-9) {
+        var b = (ux + uz) * c, disc = b * b - 2 * c * c + rc * rc;
+        if (disc >= 0) t = b + Math.sqrt(disc);
+      }
+    }
+    return Math.max(t, 0);
+  }
+
+  // 上から見た外形の、中心からの距離。off は斜面の中心線（対角方向）からの角度（ラジアン）
+  // 外形は、リングと扇形の外周を接線でつないだ形。斜面の先端は半径 e の角丸
+  function footprintLimit(s, off) {
+    var half = s.span / 2 * Math.PI / 180;
+    var beta = Math.acos(s.rTop / s.rOut), A = Math.min(half + beta, Math.PI);
+    var e = Math.max(0, Math.min(s.e, s.rTop - 0.5));
+    var Dc = s.rOut - e, psi = Math.acos((s.rTop - e) / Dc), offC = A - psi;
+    var offL = Math.atan2(Dc * Math.sin(offC) + e * Math.sin(A), Dc * Math.cos(offC) + e * Math.cos(A));
+    if (off <= offC) return s.rOut;
+    if (off <= offL) {
+      var g = off - offC, q = Dc * Math.sin(g);
+      return Dc * Math.cos(g) + Math.sqrt(Math.max(e * e - q * q, 0));
+    }
+    if (off < A) return s.rTop / Math.cos(A - off);
+    return s.rTop;
+  }
+
+  // 高さ方向に細かく点を足して、床側の R がなめらかに出るようにする
+  function densify(pts) {
+    var out = [pts[0]];
+    for (var i = 1; i < pts.length; i++) {
+      var a = pts[i - 1], b = pts[i], n = Math.max(1, Math.ceil(Math.abs(b[1] - a[1]) / 0.25));
+      for (var j = 1; j <= n; j++) out.push([a[0] + (b[0] - a[0]) * j / n, a[1] + (b[1] - a[1]) * j / n]);
+    }
+    return out;
+  }
+
+  // 断面を 1 周まわして立体にする。カド置きのときは壁より外を切り落とす
+  function buildRing(s) {
+    // 断面の x は記号: 0 = 穴のふち, 1 = 上面の外端, 2 = 斜面の下端
+    var base = densify([[0, 0], [2, 0], [1, s.h], [0, s.h], [0, 0]]), N = 720, M = base.length;
+    var insets = base.map(function (q) { return floorInset(s, q[1]); });
+    var pos = new Float32Array((N + 1) * M * 3), idx = [], k = 0;
+    for (var i = 0; i <= N; i++) {
+      var th = i / N * Math.PI * 2, cs = Math.cos(th), sn = Math.sin(th);
+      // カド置きでは、全周の斜面を外形で切り落とす
+      var off = Math.abs(((th * 180 / Math.PI - 45) % 360 + 540) % 360 - 180);
+      var rT = s.rTop, rO = s.rOut;
+      var edge = s.corner ? footprintLimit(s, off * Math.PI / 180) : Infinity;
+      var facesWall = s.corner && (cs < -1e-9 || sn < -1e-9);
+      for (var j = 0; j < M; j++) {
+        var c = base[j][0];
+        var r = c <= 1 ? s.rIn + c * (rT - s.rIn) : rT + (c - 1) * (rO - rT);
+        r = Math.min(r, edge);
+        if (facesWall) r = Math.min(r, wallLimit(s, th, insets[j]));
+        pos[k++] = r * cs; pos[k++] = base[j][1]; pos[k++] = r * sn;
+      }
+    }
+    for (var a = 0; a < N; a++) {
+      for (var q = 0; q < M - 1; q++) {
+        var p0 = a * M + q, p1 = (a + 1) * M + q;
+        idx.push(p0, p1, p1 + 1, p0, p1 + 1, p0 + 1);
+      }
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    return g;
+  }
+
+  var fmt = function (v, d) { return v.toFixed(d === undefined ? 1 : d); };
+
+  function readout(p, s) {
+    KEYS.forEach(function (k) { $("o-" + k).textContent = p[k] + " " + UNITS[k]; });
+    $("l-out").textContent = s.corner ? "幅・奥行" : "外径";
+    var reach = s.span >= 90 ? s.rOut : Math.max(s.rTop, s.rOut * Math.cos((45 - s.span / 2) * Math.PI / 180));
+    $("d-out").textContent = fmt(s.corner ? s.d + reach : 2 * s.rOut);
+    $("slope_span").disabled = !s.corner;
+    $("grip_length").disabled = !s.grip;
+    $("grip_extra").disabled = !s.grip;
+    $("corner_wall").disabled = !s.corner;
+    $("corner_radius").disabled = !s.corner;
+    $("floor_radius").disabled = !s.corner;
+    $("d-in").textContent = fmt(2 * s.rIn);
+    $("d-h").textContent = fmt(s.h);
+    $("d-len").textContent = fmt(Math.sqrt(s.run * s.run + s.h * s.h));
+    $("scad").textContent = "corner = " + s.corner + ";\ngrip = " + s.grip + ";\n" + KEYS.map(function (k) { return k + " = " + p[k] + ";"; }).join("\n");
+  }
+
+  // ---- 3D ----
+  var three = null;
+  function init3d() {
+    if (!window.THREE) throw new Error("three.js not loaded");
+    var canvas = $("view"), stage = $("stage");
+    var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    var scene = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera(35, 4 / 3, 1, 2000);
+    camera.position.set(95, 80, 125);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f80, 0.75));
+    var sun = new THREE.DirectionalLight(0xffffff, 0.8);
+    sun.position.set(80, 140, 60);
+    scene.add(sun);
+
+    var ringMat = new THREE.MeshStandardMaterial({ color: 0x7b5a44, roughness: 0.85, metalness: 0, flatShading: true, side: THREE.DoubleSide });
+    var ring = new THREE.Mesh(new THREE.BufferGeometry(), ringMat);
+    scene.add(ring);
+
+    // つまみ: 対角方向に立つ厚み 3mm の板。上はアーチ形
+    var grip = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), ringMat);
+    grip.rotation.y = -Math.PI / 4;
+    scene.add(grip);
+
+    var cupMat = new THREE.MeshStandardMaterial({ color: 0xe8a23a, roughness: 0.3, transparent: true, opacity: 0.85 });
+    var cup = new THREE.Mesh(new THREE.BufferGeometry(), cupMat);
+    scene.add(cup);
+
+    var floor = new THREE.Mesh(
+      new THREE.CircleGeometry(1, 96),
+      new THREE.MeshBasicMaterial({ color: 0x808678, transparent: true, opacity: 0.16, depthWrite: false })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.05;
+    scene.add(floor);
+
+    // カド置きのときに見せるケースの床と壁
+    var caseMat = new THREE.MeshBasicMaterial({ color: 0x8fa3ad, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide });
+    var caseFloor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), floor.material);
+    caseFloor.rotation.x = -Math.PI / 2;
+    var wallX = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), caseMat);
+    wallX.rotation.y = Math.PI / 2;
+    var wallZ = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), caseMat);
+    scene.add(caseFloor, wallX, wallZ);
+
+    var controls = null;
+    if (THREE.OrbitControls) {
+      controls = new THREE.OrbitControls(camera, canvas);
+      controls.enablePan = false;
+      controls.minDistance = 60;
+      controls.maxDistance = 500;
+      controls.maxPolarAngle = Math.PI / 2 - 0.02;
+      controls.addEventListener("change", render);
+    }
+
+    function render() { renderer.render(scene, camera); }
+    function resize() {
+      var w = stage.clientWidth, h = stage.clientHeight;
+      if (!w || !h) return;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      render();
+    }
+    if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+    window.addEventListener("resize", resize);
+
+    three = {
+      update: function (p, s) {
+        ring.geometry.dispose();
+        ring.geometry = buildRing(s);
+        var g0 = s.rIn + 6, g1 = g0 + s.gripLen;   // 穴のふちから 6mm 離す
+        var gs = new THREE.Shape();
+        gs.moveTo(g0, 0); gs.lineTo(g1, 0); gs.lineTo(g1, s.h);
+        gs.absellipse((g0 + g1) / 2, s.h, (g1 - g0) / 2, Math.max(s.gripExtra, 0.01), 0, Math.PI, false, 0);
+        gs.lineTo(g0, 0);
+        grip.geometry.dispose();
+        grip.geometry = new THREE.ExtrudeGeometry(gs, { depth: 3, bevelEnabled: false, curveSegments: 32 });
+        grip.geometry.translate(0, 0, -1.5);
+        grip.visible = s.grip;
+        var L = s.rOut + s.d + 12, mid = -s.d + L / 2, wh = Math.max(40, s.h * 2.5);
+        floor.visible = !s.corner;
+        caseFloor.visible = wallX.visible = wallZ.visible = s.corner;
+        caseFloor.scale.set(L, L, 1);
+        caseFloor.position.set(mid, -0.05, mid);
+        wallX.scale.set(L, wh, 1);
+        wallX.position.set(-s.d, wh / 2, mid);
+        wallZ.scale.set(L, wh, 1);
+        wallZ.position.set(mid, wh / 2, -s.d);
+        cup.geometry.dispose();
+        var r = p.cup_diameter / 2;
+        cup.geometry = new THREE.CylinderGeometry(r, r * 0.9, p.cup_height, 96);
+        cup.position.y = p.cup_height / 2;
+        floor.scale.setScalar(s.rOut * 1.35);
+        var ty = s.h / 2;
+        if (controls) { controls.target.set(0, ty, 0); controls.update(); }
+        else camera.lookAt(0, ty, 0);
+        render();
+      },
+      setCup: function (on) { cup.visible = on; render(); },
+      setColor: function (hex) { ringMat.color.set(hex); render(); }
+    };
+    resize();
+  }
+
+  try { init3d(); } catch (e) { $("fail").hidden = false; $("view").hidden = true; }
+
+  function update() {
+    var p = params(), s = shape(p);
+    readout(p, s);
+    if (three) three.update(p, s);
+  }
+
+  KEYS.forEach(function (k) { $(k).addEventListener("input", update); });
+  $("corner").addEventListener("change", update);
+  $("grip").addEventListener("change", update);
+  $("show_cup").addEventListener("change", function () { if (three) three.setCup(this.checked); });
+  Array.prototype.forEach.call($("swatches").querySelectorAll("button"), function (b) {
+    b.addEventListener("click", function () {
+      Array.prototype.forEach.call($("swatches").querySelectorAll("button"), function (o) {
+        o.setAttribute("aria-pressed", o === b ? "true" : "false");
+      });
+      if (three) three.setColor(b.dataset.color);
+    });
+  });
+
+  update();
+})();
+</script>
